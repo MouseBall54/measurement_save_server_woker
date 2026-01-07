@@ -3,7 +3,7 @@ import logging
 
 import pika
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.config import get_settings
 from app.db.models import (
@@ -20,8 +20,9 @@ from app.db.models import (
     SpasSite,
 )
 from app.db.session import SessionLocal
+from app.logging_config import setup_logging
 
-logging.basicConfig(level=logging.INFO)
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -34,7 +35,14 @@ def get_or_create(session, model, defaults=None, **filters):
         params.update(defaults)
     instance = model(**params)
     session.add(instance)
-    session.flush()
+    nested = session.begin_nested()
+    try:
+        session.flush()
+        nested.commit()
+    except IntegrityError:
+        nested.rollback()
+        session.expire_all()
+        instance = session.execute(select(model).filter_by(**filters)).scalar_one()
     return instance
 
 

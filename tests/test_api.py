@@ -50,3 +50,28 @@ def test_ingest_queues_message(client, monkeypatch):
 def test_ingest_validation_error(client):
     response = client.post("/ingest", json={"product_name": "P1"})
     assert response.status_code == 422
+
+
+def test_health_ok(client):
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_ready_ok(client, monkeypatch):
+    monkeypatch.setattr(routes, "check_db", lambda: True)
+    monkeypatch.setattr(routes, "check_rabbitmq", lambda: True)
+    response = client.get("/ready")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ready"}
+
+
+def test_ready_not_ok(client, monkeypatch):
+    monkeypatch.setattr(routes, "check_db", lambda: False)
+    monkeypatch.setattr(routes, "check_rabbitmq", lambda: True)
+    response = client.get("/ready")
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "not_ready",
+        "details": {"db": False, "rabbitmq": True},
+    }

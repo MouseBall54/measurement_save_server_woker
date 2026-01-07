@@ -1,5 +1,96 @@
 # Measurement Save Server Worker
 
+## 프로젝트 구조
+
+```
+.
+├─ app/
+│  ├─ main.py                # FastAPI 앱 엔트리포인트
+│  ├─ config.py              # 환경 변수 로딩
+│  ├─ schemas.py             # 요청/응답 스키마(Pydantic)
+│  ├─ api/
+│  │  └─ routes.py            # /ingest 라우팅
+│  ├─ queue/
+│  │  └─ rabbitmq.py          # RabbitMQ 연결/퍼블리시
+│  ├─ worker/
+│  │  └─ worker.py            # 워커 엔트리포인트 (큐 소비 -> DB insert)
+│  └─ db/
+│     ├─ models.py            # SQLAlchemy 모델
+│     ├─ session.py           # DB 세션/엔진
+│     └─ schema.sql           # DB 스키마 (create_db.sql 기반)
+├─ tests/
+│  ├─ conftest.py             # 테스트 공통 fixture
+│  ├─ test_api.py             # API 테스트
+│  ├─ test_queue.py           # RabbitMQ 퍼블리셔 테스트
+│  └─ test_worker.py          # 워커/DB insert 테스트
+├─ create_db.sql              # 원본 스키마
+└─ README.md
+```
+
+## 기능별 설명 (한글)
+
+- `app/main.py`
+  - FastAPI 앱 생성 및 라우터 등록
+- `app/config.py`
+  - RabbitMQ/DB 연결 정보를 환경 변수로 읽어 Settings 구성
+- `app/schemas.py`
+  - `/ingest` 입력 데이터 검증용 Pydantic 모델 정의
+- `app/api/routes.py`
+  - `POST /ingest` 구현
+  - 요청 검증 후 RabbitMQ에 메시지 publish, 즉시 `queued` 응답
+- `app/queue/rabbitmq.py`
+  - RabbitMQ 연결 관리 및 메시지 퍼블리시
+  - durable queue 선언, persistent 메시지 설정
+- `app/worker/worker.py`
+  - 큐에서 메시지 소비
+  - 메시지 내용을 DB 스키마에 맞게 insert
+  - 성공 시 ACK, 실패 시 NACK(requeue)
+- `app/db/models.py`
+  - `schema.sql` 기반 SQLAlchemy 모델
+- `app/db/session.py`
+  - SQLAlchemy Engine/Session 생성
+- `tests/*`
+  - API/Queue/Worker에 대한 pytest 테스트
+
+## FastAPI → RabbitMQ → Worker → DB 동작 구조
+
+1) FastAPI (`/ingest`)
+   - 클라이언트 요청을 받아 `schemas.py`로 데이터 검증
+   - 검증된 payload를 RabbitMQ에 publish
+   - DB에는 직접 쓰지 않음
+
+2) RabbitMQ
+   - durable queue에 메시지를 저장 (persistent)
+   - 워커가 메시지를 가져갈 때까지 보관
+
+3) Worker
+   - 큐에서 메시지 consume
+   - payload를 파싱하고 필요한 마스터/조합 테이블을 get-or-create
+   - `measurement_files` 및 `measurement_raw_data`에 insert
+   - 성공 시 ACK, 실패 시 NACK(requeue)
+
+4) DB
+   - `app/db/schema.sql`에 정의된 테이블 구조를 그대로 사용
+   - 중복 키는 유니크 제약으로 방지
+
+## 헬스체크/상태 확인
+
+- `GET /health`
+  - API 프로세스가 살아있는지 확인 (liveness)
+- `GET /ready`
+  - DB와 RabbitMQ 연결 가능 여부 확인 (readiness)
+- `GET /metrics`
+  - Prometheus 수집용 메트릭 노출
+
+## 로그/메트릭 관리 방식
+
+- 로그
+  - JSON 형태로 stdout에 출력
+  - 운영 환경에서는 로그 수집기(예: ELK, Cloud Logging)로 전송
+- 메트릭
+  - `prometheus_client`로 HTTP 요청 수/지연시간 수집
+  - Prometheus에서 `/metrics`를 스크랩하고 Grafana로 시각화/알람
+
 ## Environment Variables
 
 - `RABBITMQ_HOST` (default: `localhost`)
@@ -8,6 +99,34 @@
 - `RABBITMQ_PASSWORD` (default: `guest`)
 - `RABBITMQ_QUEUE_NAME` (default: `measurement_ingest`)
 - `DATABASE_URL` (default: `mysql+pymysql://user:password@localhost:3306/measure_system_3`)
+
+## 설치해야 하는 것
+
+- Python 3.11+
+- RabbitMQ (서버)
+- MySQL (서버)
+- Python 패키지 (가상환경 권장)
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Linux/macOS
+pip install -r requirements.txt
+```
+
+### Windows 환경 주의사항
+
+- 가상환경 활성화:
+  - `.\.venv\Scripts\activate`
+- MySQL 클라이언트에서 스키마 적용 시 경로 구분자 주의
+  - PowerShell 기준: `Get-Content app\db\schema.sql | mysql -u <user> -p`
+- RabbitMQ는 Windows 서비스로 설치하거나 Docker 사용 권장
+
+### Linux 환경 주의사항
+
+- 서비스 설치/실행을 systemd로 관리하는 경우가 일반적
+  - 예: `sudo systemctl start rabbitmq-server`, `sudo systemctl start mysql`
+- 스키마 적용:
+  - `mysql -u <user> -p < app/db/schema.sql`
 
 ## Local Run
 
