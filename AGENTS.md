@@ -1,4 +1,8 @@
-아래 텍스트를 AI 에이전트에게 그대로 주면, **FastAPI + RabbitMQ + 워커 + DB(insert)** 구조를, 이미 만들어 둔 SQL 파일을 참고해서 구현하도록 지시할 수 있다.[1][2]
+작업 문서:
+- 계획: docs/WORK_PLAN.md
+- 체크리스트: docs/WORK_CHECKLIST.md
+
+지금 이 Codex 세션에서 context7, sequentialthinking, 파일 시스템 MCP를 사용하자
 
 ***
 

@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pika
+sqlalchemy
+pymysql
+pydantic
+pytest
+pytest-asyncio
