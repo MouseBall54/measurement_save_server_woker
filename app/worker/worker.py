@@ -5,6 +5,7 @@ from datetime import datetime
 
 import pika
 from sqlalchemy import func, select, text
+from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.config import get_settings
@@ -49,107 +50,186 @@ def get_or_create(session, model, defaults=None, **filters):
     return instance
 
 
+def upsert_and_get_id(session, model, values: dict, update_fields: dict, lookup_filters: dict):
+    if session.bind.dialect.name == "mysql":
+        stmt = mysql_insert(model).values(**values)
+        stmt = stmt.on_duplicate_key_update(**update_fields)
+        session.execute(stmt)
+        return session.execute(select(model).filter_by(**lookup_filters)).scalar_one()
+
+    instance = session.execute(select(model).filter_by(**lookup_filters)).scalar_one_or_none()
+    if instance:
+        for key, value in update_fields.items():
+            setattr(instance, key, value)
+        return instance
+    instance = model(**values)
+    session.add(instance)
+    session.flush()
+    return instance
+
+
 def process_message(session, payload: dict) -> dict:
-    product = get_or_create(session, ProductName, name=payload["product_name"])
-    site = get_or_create(session, SpasSite, name=payload["site_name"])
-    node = get_or_create(session, SpasNode, name=payload["node_name"])
-    module = get_or_create(session, SpasModule, name=payload["module_name"])
-    recipe = get_or_create(
+    product = upsert_and_get_id(
+        session,
+        ProductName,
+        values={"name": payload["product_name"], "is_active": True},
+        update_fields={"is_active": True},
+        lookup_filters={"name": payload["product_name"]},
+    )
+    site = upsert_and_get_id(
+        session,
+        SpasSite,
+        values={"name": payload["site_name"], "is_active": True},
+        update_fields={"is_active": True},
+        lookup_filters={"name": payload["site_name"]},
+    )
+    node = upsert_and_get_id(
+        session,
+        SpasNode,
+        values={"name": payload["node_name"], "is_active": True},
+        update_fields={"is_active": True},
+        lookup_filters={"name": payload["node_name"]},
+    )
+    module = upsert_and_get_id(
+        session,
+        SpasModule,
+        values={"name": payload["module_name"], "is_active": True},
+        update_fields={"is_active": True},
+        lookup_filters={"name": payload["module_name"]},
+    )
+    recipe = upsert_and_get_id(
         session,
         MeasurementRecipe,
-        name=payload["recipe_name"],
-        version=payload["recipe_version"],
+        values={
+            "name": payload["recipe_name"],
+            "version": payload["recipe_version"],
+        },
+        update_fields={},
+        lookup_filters={
+            "name": payload["recipe_name"],
+            "version": payload["recipe_version"],
+        },
     )
-    reference = get_or_create(
+
+    reference = upsert_and_get_id(
         session,
         SpasReference,
-        product_id=product.id,
-        site_id=site.id,
-        node_id=node.id,
-        module_id=module.id,
+        values={
+            "product_id": product.id,
+            "site_id": site.id,
+            "node_id": node.id,
+            "module_id": module.id,
+        },
+        update_fields={},
+        lookup_filters={
+            "product_id": product.id,
+            "site_id": site.id,
+            "node_id": node.id,
+            "module_id": module.id,
+        },
     )
 
     lot_name = payload.get("lot_name")
     wf_number = payload.get("wf_number")
     lot_wf = None
     if lot_name is not None and wf_number is not None:
-        lot_wf = get_or_create(session, LotWf, lot_name=lot_name, wf_number=wf_number)
+        lot_wf = upsert_and_get_id(
+            session,
+            LotWf,
+            values={"lot_name": lot_name, "wf_number": wf_number},
+            update_fields={},
+            lookup_filters={"lot_name": lot_name, "wf_number": wf_number},
+        )
 
-    measurement_file = get_or_create(
+    desired_lot_wf_id = lot_wf.id if lot_wf else None
+    measurement_file = upsert_and_get_id(
         session,
         MeasurementFile,
-        file_path=payload["file_path"],
-        recipe_id=recipe.id,
-        defaults={
+        values={
+            "file_path": payload["file_path"],
+            "recipe_id": recipe.id,
             "file_name": payload["file_name"],
             "reference_id": reference.id,
-            "lot_wf_id": lot_wf.id if lot_wf else None,
+            "lot_wf_id": desired_lot_wf_id,
+        },
+        update_fields={
+            "file_name": payload["file_name"],
+            "reference_id": reference.id,
+            "lot_wf_id": desired_lot_wf_id,
+        },
+        lookup_filters={
+            "file_path": payload["file_path"],
+            "recipe_id": recipe.id,
         },
     )
-    if measurement_file.file_name != payload["file_name"]:
-        measurement_file.file_name = payload["file_name"]
-    if measurement_file.reference_id != reference.id:
-        measurement_file.reference_id = reference.id
-    desired_lot_wf_id = lot_wf.id if lot_wf else None
-    if measurement_file.lot_wf_id != desired_lot_wf_id:
-        measurement_file.lot_wf_id = desired_lot_wf_id
 
     measurements = payload.get("measurements", [])
     inserted = 0
     for measurement in measurements:
-        metric_type = get_or_create(
+        metric_unit = measurement.get("metric_unit")
+        metric_type = upsert_and_get_id(
             session,
             MetricType,
-            name=measurement["metric_name"],
-            defaults={"unit": measurement.get("metric_unit")},
+            values={"name": measurement["metric_name"], "unit": metric_unit, "is_active": True},
+            update_fields={"unit": metric_unit, "is_active": True},
+            lookup_filters={"name": measurement["metric_name"]},
         )
-        metric_unit = measurement.get("metric_unit")
-        if metric_unit is not None and metric_type.unit != metric_unit:
-            metric_type.unit = metric_unit
-        if metric_type.is_active is False:
-            metric_type.is_active = True
 
-        measurement_item = get_or_create(
+        measurement_item = upsert_and_get_id(
             session,
             MeasurementItem,
-            class_name=measurement["class_name"],
-            measure_item=measurement["measure_item"],
-            metric_type_id=metric_type.id,
+            values={
+                "class_name": measurement["class_name"],
+                "measure_item": measurement["measure_item"],
+                "metric_type_id": metric_type.id,
+                "is_active": True,
+            },
+            update_fields={"is_active": True},
+            lookup_filters={
+                "class_name": measurement["class_name"],
+                "measure_item": measurement["measure_item"],
+                "metric_type_id": metric_type.id,
+            },
         )
-        if measurement_item.is_active is False:
-            measurement_item.is_active = True
 
-        existing = session.execute(
-            select(MeasurementRawData).filter_by(
-                file_id=measurement_file.id,
-                item_id=measurement_item.id,
-                x_index=measurement["x_index"],
-                y_index=measurement["y_index"],
-            )
-        ).scalar_one_or_none()
-
-        if existing:
-            existing.measurable = measurement.get("measurable", True)
-            existing.x_0 = measurement["x_0"]
-            existing.y_0 = measurement["y_0"]
-            existing.x_1 = measurement["x_1"]
-            existing.y_1 = measurement["y_1"]
-            existing.value = measurement["value"]
-            continue
-
-        raw = MeasurementRawData(
-            file_id=measurement_file.id,
-            item_id=measurement_item.id,
-            measurable=measurement.get("measurable", True),
-            x_index=measurement["x_index"],
-            y_index=measurement["y_index"],
-            x_0=measurement["x_0"],
-            y_0=measurement["y_0"],
-            x_1=measurement["x_1"],
-            y_1=measurement["y_1"],
-            value=measurement["value"],
-        )
-        session.add(raw)
+        raw_values = {
+            "file_id": measurement_file.id,
+            "item_id": measurement_item.id,
+            "measurable": measurement.get("measurable", True),
+            "x_index": measurement["x_index"],
+            "y_index": measurement["y_index"],
+            "x_0": measurement["x_0"],
+            "y_0": measurement["y_0"],
+            "x_1": measurement["x_1"],
+            "y_1": measurement["y_1"],
+            "value": measurement["value"],
+        }
+        raw_updates = {
+            "measurable": measurement.get("measurable", True),
+            "x_0": measurement["x_0"],
+            "y_0": measurement["y_0"],
+            "x_1": measurement["x_1"],
+            "y_1": measurement["y_1"],
+            "value": measurement["value"],
+        }
+        if session.bind.dialect.name == "mysql":
+            raw_stmt = mysql_insert(MeasurementRawData).values(**raw_values)
+            raw_stmt = raw_stmt.on_duplicate_key_update(**raw_updates)
+            session.execute(raw_stmt)
+        else:
+            existing = session.execute(
+                select(MeasurementRawData).filter_by(
+                    file_id=measurement_file.id,
+                    item_id=measurement_item.id,
+                    x_index=measurement["x_index"],
+                    y_index=measurement["y_index"],
+                )
+            ).scalar_one_or_none()
+            if existing:
+                for key, value in raw_updates.items():
+                    setattr(existing, key, value)
+            else:
+                session.add(MeasurementRawData(**raw_values))
         inserted += 1
 
     measurement_file.updated_at = func.now()
