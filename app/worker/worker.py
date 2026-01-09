@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 
 import pika
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.config import get_settings
@@ -150,7 +150,7 @@ def process_message(session, payload: dict) -> dict:
         session.add(raw)
         inserted += 1
 
-    measurement_file.updated_at = datetime.utcnow()
+    measurement_file.updated_at = func.now()
 
     return {
         "file_path": payload.get("file_path"),
