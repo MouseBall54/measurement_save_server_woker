@@ -53,7 +53,10 @@ def get_or_create(session, model, defaults=None, **filters):
 def upsert_and_get_id(session, model, values: dict, update_fields: dict, lookup_filters: dict):
     if session.bind.dialect.name == "mysql":
         stmt = mysql_insert(model).values(**values)
-        stmt = stmt.on_duplicate_key_update(**update_fields)
+        if update_fields:
+            stmt = stmt.on_duplicate_key_update(**update_fields)
+        else:
+            stmt = stmt.prefix_with("IGNORE")
         session.execute(stmt)
         return session.execute(select(model).filter_by(**lookup_filters)).scalar_one()
 
