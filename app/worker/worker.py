@@ -46,7 +46,7 @@ def get_or_create(session, model, defaults=None, **filters):
     return instance
 
 
-def process_message(session, payload: dict) -> None:
+def process_message(session, payload: dict) -> dict:
     product = get_or_create(session, ProductName, name=payload["product_name"])
     site = get_or_create(session, SpasSite, name=payload["site_name"])
     node = get_or_create(session, SpasNode, name=payload["node_name"])
@@ -85,6 +85,7 @@ def process_message(session, payload: dict) -> None:
     )
 
     measurements = payload.get("measurements", [])
+    inserted = 0
     for measurement in measurements:
         metric_type = get_or_create(
             session,
@@ -126,6 +127,13 @@ def process_message(session, payload: dict) -> None:
             value=measurement["value"],
         )
         session.add(raw)
+        inserted += 1
+
+    return {
+        "file_path": payload.get("file_path"),
+        "measurement_count": len(measurements),
+        "inserted_count": inserted,
+    }
 
 
 def main() -> None:
@@ -147,8 +155,17 @@ def main() -> None:
         try:
             message = json.loads(body)
             payload = message.get("payload", {})
-            process_message(session, payload)
+            logger.info("Worker received message", extra={"file_path": payload.get("file_path")})
+            result = process_message(session, payload)
             session.commit()
+            logger.info(
+                "Worker processed message",
+                extra={
+                    "file_path": result["file_path"],
+                    "measurement_count": result["measurement_count"],
+                    "inserted_count": result["inserted_count"],
+                },
+            )
             ch.basic_ack(delivery_tag=method.delivery_tag)
         except (json.JSONDecodeError, SQLAlchemyError, KeyError) as exc:
             session.rollback()

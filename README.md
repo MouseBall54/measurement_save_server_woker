@@ -87,6 +87,7 @@
 - 로그
   - JSON 형태로 stdout에 출력
   - 운영 환경에서는 로그 수집기(예: ELK, Cloud Logging)로 전송
+  - 기본 파일 로그: `logs/app.log`, 에러 로그: `logs/error.log`
 - 메트릭
   - `prometheus_client`로 HTTP 요청 수/지연시간 수집
   - Prometheus에서 `/metrics`를 스크랩하고 Grafana로 시각화/알람
