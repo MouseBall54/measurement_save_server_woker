@@ -207,3 +207,169 @@ curl -X POST http://localhost:8000/ingest \
 ```bash
 pytest -q
 ```
+
+## Python 클라이언트 템플릿 (DataFrame / NumPy)
+
+```python
+import requests
+
+
+def build_payload(common: dict, measurements: list[dict]) -> dict:
+    payload = dict(common)
+    payload["measurements"] = measurements
+    return payload
+
+
+def ingest_from_dataframe(api_url: str, common: dict, df):
+    """
+    df columns expected:
+      metric_name, metric_unit, class_name, measure_item, measurable,
+      x_index, y_index, x_0, y_0, x_1, y_1, value
+    """
+    measurements = []
+    for row in df.to_dict(orient="records"):
+        measurements.append(
+            {
+                "metric_name": row["metric_name"],
+                "metric_unit": row.get("metric_unit"),
+                "class_name": row["class_name"],
+                "measure_item": row["measure_item"],
+                "measurable": bool(row.get("measurable", True)),
+                "x_index": int(row["x_index"]),
+                "y_index": int(row["y_index"]),
+                "x_0": float(row["x_0"]),
+                "y_0": float(row["y_0"]),
+                "x_1": float(row["x_1"]),
+                "y_1": float(row["y_1"]),
+                "value": float(row["value"]),
+            }
+        )
+
+    payload = build_payload(common, measurements)
+    response = requests.post(f"{api_url}/ingest", json=payload, timeout=10)
+    response.raise_for_status()
+    return response.json()
+
+
+def ingest_from_numpy(api_url: str, common: dict, arr):
+    """
+    arr shape expected: (N, 12)
+    columns order:
+      metric_name, metric_unit, class_name, measure_item, measurable,
+      x_index, y_index, x_0, y_0, x_1, y_1, value
+    """
+    measurements = []
+    for row in arr:
+        measurements.append(
+            {
+                "metric_name": row[0],
+                "metric_unit": row[1],
+                "class_name": row[2],
+                "measure_item": row[3],
+                "measurable": bool(row[4]),
+                "x_index": int(row[5]),
+                "y_index": int(row[6]),
+                "x_0": float(row[7]),
+                "y_0": float(row[8]),
+                "x_1": float(row[9]),
+                "y_1": float(row[10]),
+                "value": float(row[11]),
+            }
+        )
+
+    payload = build_payload(common, measurements)
+    response = requests.post(f"{api_url}/ingest", json=payload, timeout=10)
+    response.raise_for_status()
+    return response.json()
+```
+
+### 사용 예시 (DataFrame)
+
+```python
+import pandas as pd
+
+common = {
+    "product_name": "P1",
+    "site_name": "HC",
+    "node_name": "2NM",
+    "module_name": "PC",
+    "recipe_name": "RCP",
+    "recipe_version": "1.0",
+    "file_path": "/data/measurements/measure1.csv",
+    "file_name": "measure1.csv",
+    "lot_name": "LOT001",
+    "wf_number": 12,
+}
+
+df = pd.DataFrame(
+    [
+        {
+            "metric_name": "THK",
+            "metric_unit": "nm",
+            "class_name": "CLASS_A",
+            "measure_item": "ITEM_1",
+            "measurable": True,
+            "x_index": 0,
+            "y_index": 0,
+            "x_0": 0.1,
+            "y_0": 0.2,
+            "x_1": 0.3,
+            "y_1": 0.4,
+            "value": 1.23,
+        },
+        {
+            "metric_name": "THK",
+            "metric_unit": "nm",
+            "class_name": "CLASS_A",
+            "measure_item": "ITEM_1",
+            "measurable": True,
+            "x_index": 1,
+            "y_index": 0,
+            "x_0": 0.2,
+            "y_0": 0.3,
+            "x_1": 0.4,
+            "y_1": 0.5,
+            "value": 2.34,
+        },
+    ]
+)
+
+resp = ingest_from_dataframe("http://localhost:8000", common, df)
+print(resp)
+```
+
+### 사용 예시 (NumPy)
+
+```python
+import numpy as np
+
+common = {
+    "product_name": "P1",
+    "site_name": "HC",
+    "node_name": "2NM",
+    "module_name": "PC",
+    "recipe_name": "RCP",
+    "recipe_version": "1.0",
+    "file_path": "/data/measurements/measure1.csv",
+    "file_name": "measure1.csv",
+    "lot_name": "LOT001",
+    "wf_number": 12,
+}
+
+# columns:
+# metric_name, metric_unit, class_name, measure_item, measurable,
+# x_index, y_index, x_0, y_0, x_1, y_1, value
+arr = np.array(
+    [
+        ["THK", "nm", "CLASS_A", "ITEM_1", True, 0, 0, 0.1, 0.2, 0.3, 0.4, 1.23],
+        ["THK", "nm", "CLASS_A", "ITEM_1", True, 1, 0, 0.2, 0.3, 0.4, 0.5, 2.34],
+    ]
+)
+
+resp = ingest_from_numpy(
+    "http://localhost:8000",
+    common,
+    arr,
+)
+print(resp)
+```
