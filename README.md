@@ -165,18 +165,36 @@ curl -X POST http://localhost:8000/ingest \
     "file_name": "measure1.csv",
     "lot_name": "LOT001",
     "wf_number": 12,
-    "metric_name": "THK",
-    "metric_unit": "nm",
-    "class_name": "CLASS_A",
-    "measure_item": "ITEM_1",
-    "measurable": true,
-    "x_index": 0,
-    "y_index": 0,
-    "x_0": 0.1,
-    "y_0": 0.2,
-    "x_1": 0.3,
-    "y_1": 0.4,
-    "value": 1.23
+    "measurements": [
+      {
+        "metric_name": "THK",
+        "metric_unit": "nm",
+        "class_name": "CLASS_A",
+        "measure_item": "ITEM_1",
+        "measurable": true,
+        "x_index": 0,
+        "y_index": 0,
+        "x_0": 0.1,
+        "y_0": 0.2,
+        "x_1": 0.3,
+        "y_1": 0.4,
+        "value": 1.23
+      },
+      {
+        "metric_name": "THK",
+        "metric_unit": "nm",
+        "class_name": "CLASS_A",
+        "measure_item": "ITEM_1",
+        "measurable": true,
+        "x_index": 1,
+        "y_index": 0,
+        "x_0": 0.2,
+        "y_0": 0.3,
+        "x_1": 0.4,
+        "y_1": 0.5,
+        "value": 2.34
+      }
+    ]
   }'
 ```
 

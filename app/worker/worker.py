@@ -72,21 +72,6 @@ def process_message(session, payload: dict) -> None:
     if lot_name is not None and wf_number is not None:
         lot_wf = get_or_create(session, LotWf, lot_name=lot_name, wf_number=wf_number)
 
-    metric_type = get_or_create(
-        session,
-        MetricType,
-        name=payload["metric_name"],
-        defaults={"unit": payload.get("metric_unit")},
-    )
-
-    measurement_item = get_or_create(
-        session,
-        MeasurementItem,
-        class_name=payload["class_name"],
-        measure_item=payload["measure_item"],
-        metric_type_id=metric_type.id,
-    )
-
     measurement_file = get_or_create(
         session,
         MeasurementFile,
@@ -99,31 +84,48 @@ def process_message(session, payload: dict) -> None:
         },
     )
 
-    existing = session.execute(
-        select(MeasurementRawData).filter_by(
+    measurements = payload.get("measurements", [])
+    for measurement in measurements:
+        metric_type = get_or_create(
+            session,
+            MetricType,
+            name=measurement["metric_name"],
+            defaults={"unit": measurement.get("metric_unit")},
+        )
+
+        measurement_item = get_or_create(
+            session,
+            MeasurementItem,
+            class_name=measurement["class_name"],
+            measure_item=measurement["measure_item"],
+            metric_type_id=metric_type.id,
+        )
+
+        existing = session.execute(
+            select(MeasurementRawData).filter_by(
+                file_id=measurement_file.id,
+                item_id=measurement_item.id,
+                x_index=measurement["x_index"],
+                y_index=measurement["y_index"],
+            )
+        ).scalar_one_or_none()
+
+        if existing:
+            continue
+
+        raw = MeasurementRawData(
             file_id=measurement_file.id,
             item_id=measurement_item.id,
-            x_index=payload["x_index"],
-            y_index=payload["y_index"],
+            measurable=measurement.get("measurable", True),
+            x_index=measurement["x_index"],
+            y_index=measurement["y_index"],
+            x_0=measurement["x_0"],
+            y_0=measurement["y_0"],
+            x_1=measurement["x_1"],
+            y_1=measurement["y_1"],
+            value=measurement["value"],
         )
-    ).scalar_one_or_none()
-
-    if existing:
-        return
-
-    raw = MeasurementRawData(
-        file_id=measurement_file.id,
-        item_id=measurement_item.id,
-        measurable=payload.get("measurable", True),
-        x_index=payload["x_index"],
-        y_index=payload["y_index"],
-        x_0=payload["x_0"],
-        y_0=payload["y_0"],
-        x_1=payload["x_1"],
-        y_1=payload["y_1"],
-        value=payload["value"],
-    )
-    session.add(raw)
+        session.add(raw)
 
 
 def main() -> None:
