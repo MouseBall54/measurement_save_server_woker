@@ -72,6 +72,8 @@
 4) DB
    - `app/db/schema.sql`에 정의된 테이블 구조를 그대로 사용
    - 중복 키는 유니크 제약으로 방지
+   - 동일 `file_path + recipe` 조합은 최신 `file_name`, `reference_id`, `lot_wf_id`로 업데이트
+   - 동일 `file_id + item_id + x_index + y_index` 조합은 측정값을 업데이트
 
 ## 헬스체크/상태 확인
 

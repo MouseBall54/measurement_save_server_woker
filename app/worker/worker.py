@@ -83,6 +83,13 @@ def process_message(session, payload: dict) -> dict:
             "lot_wf_id": lot_wf.id if lot_wf else None,
         },
     )
+    if measurement_file.file_name != payload["file_name"]:
+        measurement_file.file_name = payload["file_name"]
+    if measurement_file.reference_id != reference.id:
+        measurement_file.reference_id = reference.id
+    desired_lot_wf_id = lot_wf.id if lot_wf else None
+    if measurement_file.lot_wf_id != desired_lot_wf_id:
+        measurement_file.lot_wf_id = desired_lot_wf_id
 
     measurements = payload.get("measurements", [])
     inserted = 0
@@ -93,6 +100,11 @@ def process_message(session, payload: dict) -> dict:
             name=measurement["metric_name"],
             defaults={"unit": measurement.get("metric_unit")},
         )
+        metric_unit = measurement.get("metric_unit")
+        if metric_unit is not None and metric_type.unit != metric_unit:
+            metric_type.unit = metric_unit
+        if metric_type.is_active is False:
+            metric_type.is_active = True
 
         measurement_item = get_or_create(
             session,
@@ -101,6 +113,8 @@ def process_message(session, payload: dict) -> dict:
             measure_item=measurement["measure_item"],
             metric_type_id=metric_type.id,
         )
+        if measurement_item.is_active is False:
+            measurement_item.is_active = True
 
         existing = session.execute(
             select(MeasurementRawData).filter_by(
@@ -112,6 +126,12 @@ def process_message(session, payload: dict) -> dict:
         ).scalar_one_or_none()
 
         if existing:
+            existing.measurable = measurement.get("measurable", True)
+            existing.x_0 = measurement["x_0"]
+            existing.y_0 = measurement["y_0"]
+            existing.x_1 = measurement["x_1"]
+            existing.y_1 = measurement["y_1"]
+            existing.value = measurement["value"]
             continue
 
         raw = MeasurementRawData(
