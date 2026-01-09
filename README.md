@@ -147,6 +147,12 @@ pip install -r requirements.txt
 mysql -u <user> -p < app/db/schema.sql
 ```
 
+기존 DB에 `updated_at` 컬럼이 없다면 아래 마이그레이션을 먼저 적용하세요.
+
+```bash
+mysql -u <user> -p < app/db/migrations/20250101_add_updated_at_measurement_files.sql
+```
+
 3) Start the API server
 
 ```bash

@@ -157,6 +157,7 @@ CREATE TABLE measurement_files (
   recipe_id    INT NOT NULL,
 
   created_at   DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at   DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
 
   CONSTRAINT fk_files_reference
     FOREIGN KEY (reference_id) REFERENCES spas_references(id)

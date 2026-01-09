@@ -100,6 +100,7 @@ class MeasurementFile(Base):
     lot_wf_id = Column(Integer, ForeignKey("lot_wf.id"), nullable=True)
     recipe_id = Column(Integer, ForeignKey("measurement_recipe.id"), nullable=False)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 
     __table_args__ = (UniqueConstraint("file_path", "recipe_id", name="uk_files_path_recipe"),)
 
