@@ -2,18 +2,35 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime
 
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {
+            "timestamp": datetime.utcfromtimestamp(record.created).isoformat() + "Z",
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
         }
+        for key in (
+            "event",
+            "file_path",
+            "measurement_count",
+            "inserted_count",
+            "db",
+            "rabbitmq",
+        ):
+            if hasattr(record, key):
+                payload[key] = getattr(record, key)
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, ensure_ascii=True)
+
+
+class EventOnlyFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return hasattr(record, "event")
 
 
 def setup_logging(level: int = logging.INFO) -> None:
@@ -26,6 +43,7 @@ def setup_logging(level: int = logging.INFO) -> None:
 
     file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(JsonFormatter())
+    file_handler.addFilter(EventOnlyFilter())
 
     error_handler = logging.FileHandler(error_log_file)
     error_handler.setLevel(logging.ERROR)

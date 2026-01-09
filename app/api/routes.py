@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+import logging
 from sqlalchemy import text
 import pika
 
@@ -8,6 +9,7 @@ from app.queue.rabbitmq import RabbitMQClient
 from app.schemas import IngestRequest, IngestResponse
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def check_db() -> bool:
@@ -44,13 +46,22 @@ def ingest(payload: IngestRequest) -> IngestResponse:
     try:
         with RabbitMQClient() as client:
             message_id = client.publish(payload.model_dump())
+        logger.info(
+            "Queued ingest request",
+            extra={"event": "ingest_queued", "file_path": payload.file_path},
+        )
     except Exception as exc:
+        logger.exception(
+            "Queue unavailable",
+            extra={"event": "ingest_error", "file_path": payload.file_path},
+        )
         raise HTTPException(status_code=503, detail="Queue unavailable") from exc
     return IngestResponse(status="queued", id=message_id)
 
 
 @router.get("/health")
 def health() -> dict:
+    logger.info("Health check", extra={"event": "health"})
     return {"status": "ok"}
 
 
@@ -58,6 +69,10 @@ def health() -> dict:
 def ready() -> tuple[dict, int]:
     db_ok = check_db()
     mq_ok = check_rabbitmq()
+    logger.info(
+        "Readiness check",
+        extra={"event": "ready", "db": db_ok, "rabbitmq": mq_ok},
+    )
     if db_ok and mq_ok:
         return {"status": "ready"}, 200
     return {"status": "not_ready", "details": {"db": db_ok, "rabbitmq": mq_ok}}, 503

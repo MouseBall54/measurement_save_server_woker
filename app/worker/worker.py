@@ -175,12 +175,16 @@ def main() -> None:
         try:
             message = json.loads(body)
             payload = message.get("payload", {})
-            logger.info("Worker received message", extra={"file_path": payload.get("file_path")})
+            logger.info(
+                "Worker received message",
+                extra={"event": "received", "file_path": payload.get("file_path")},
+            )
             result = process_message(session, payload)
             session.commit()
             logger.info(
                 "Worker processed message",
                 extra={
+                    "event": "processed",
                     "file_path": result["file_path"],
                     "measurement_count": result["measurement_count"],
                     "inserted_count": result["inserted_count"],
@@ -189,7 +193,11 @@ def main() -> None:
             ch.basic_ack(delivery_tag=method.delivery_tag)
         except (json.JSONDecodeError, SQLAlchemyError, KeyError) as exc:
             session.rollback()
-            logger.exception("Failed to process message: %s", exc)
+            logger.exception(
+                "Failed to process message: %s",
+                exc,
+                extra={"event": "error", "file_path": payload.get("file_path")},
+            )
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
         finally:
             session.close()
