@@ -100,6 +100,10 @@
 - `RABBITMQ_QUEUE_NAME` (default: `measurement_ingest`)
 - `DATABASE_URL` (default: `mysql+pymysql://user:password@localhost:3306/measure_system_3`)
 
+환경 변수 예시는 `.env.example` 참고.
+
+`.env` 파일을 만들고 `.env.example`을 복사해서 값만 수정하면 됩니다.
+
 ## 설치해야 하는 것
 
 - Python 3.11+

@@ -7,3 +7,4 @@ pydantic
 pytest
 pytest-asyncio
 prometheus_client
+python-dotenv

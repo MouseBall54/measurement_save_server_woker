@@ -1,5 +1,7 @@
 import os
 
+from dotenv import load_dotenv
+
 
 def get_env(name: str, default: str | None = None) -> str:
     value = os.getenv(name, default)
@@ -10,6 +12,7 @@ def get_env(name: str, default: str | None = None) -> str:
 
 class Settings:
     def __init__(self) -> None:
+        load_dotenv()
         self.rabbitmq_host = get_env("RABBITMQ_HOST", "localhost")
         self.rabbitmq_port = int(get_env("RABBITMQ_PORT", "5672"))
         self.rabbitmq_user = get_env("RABBITMQ_USER", "guest")
