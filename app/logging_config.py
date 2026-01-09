@@ -20,6 +20,8 @@ class JsonFormatter(logging.Formatter):
             "inserted_count",
             "db",
             "rabbitmq",
+            "message_id",
+            "worker_id",
         ):
             if hasattr(record, key):
                 payload[key] = getattr(record, key)

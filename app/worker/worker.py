@@ -1,9 +1,10 @@
 import json
 import logging
+import os
 from datetime import datetime
 
 import pika
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app.config import get_settings
@@ -25,6 +26,7 @@ from app.logging_config import setup_logging
 
 setup_logging()
 logger = logging.getLogger(__name__)
+WORKER_ID = os.getenv("WORKER_ID")
 
 
 def get_or_create(session, model, defaults=None, **filters):
@@ -168,19 +170,43 @@ def main() -> None:
         credentials=credentials,
     )
 
-    connection = pika.BlockingConnection(parameters)
+    logger.info("Worker starting", extra={"event": "worker_start"})
+
+    try:
+        connection = pika.BlockingConnection(parameters)
+        logger.info("RabbitMQ connected", extra={"event": "rabbitmq_connected"})
+    except Exception as exc:
+        logger.exception("RabbitMQ connection failed: %s", exc, extra={"event": "rabbitmq_error"})
+        raise
+
     channel = connection.channel()
     channel.queue_declare(queue=settings.rabbitmq_queue_name, durable=True)
     channel.basic_qos(prefetch_count=1)
+
+    try:
+        session = SessionLocal()
+        session.execute(text("SELECT 1"))
+        session.close()
+        logger.info("DB connected", extra={"event": "db_connected"})
+    except Exception as exc:
+        logger.exception("DB connection failed: %s", exc, extra={"event": "db_error"})
+        connection.close()
+        raise
 
     def callback(ch, method, properties, body):
         session = SessionLocal()
         try:
             message = json.loads(body)
             payload = message.get("payload", {})
+            worker_id = WORKER_ID or f"pid:{os.getpid()}"
             logger.info(
                 "Worker received message",
-                extra={"event": "received", "file_path": payload.get("file_path")},
+                extra={
+                    "event": "received",
+                    "file_path": payload.get("file_path"),
+                    "message_id": message.get("id"),
+                    "worker_id": worker_id,
+                },
             )
             result = process_message(session, payload)
             session.commit()
@@ -191,6 +217,8 @@ def main() -> None:
                     "file_path": result["file_path"],
                     "measurement_count": result["measurement_count"],
                     "inserted_count": result["inserted_count"],
+                    "message_id": message.get("id"),
+                    "worker_id": worker_id,
                 },
             )
             ch.basic_ack(delivery_tag=method.delivery_tag)

@@ -1,10 +1,14 @@
 import argparse
 import multiprocessing
 
+import os
+
 from app.worker.worker import main
 
 
-def run_worker() -> None:
+def run_worker(worker_id: str | None = None) -> None:
+    if worker_id:
+        os.environ["WORKER_ID"] = worker_id
     main()
 
 
@@ -23,8 +27,9 @@ if __name__ == "__main__":
     else:
         processes = []
         try:
-            for _ in range(args.workers):
-                process = multiprocessing.Process(target=run_worker)
+            for idx in range(args.workers):
+                worker_id = f"worker-{idx + 1}"
+                process = multiprocessing.Process(target=run_worker, args=(worker_id,))
                 process.start()
                 processes.append(process)
             for process in processes:

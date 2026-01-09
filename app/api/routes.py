@@ -48,7 +48,11 @@ def ingest(payload: IngestRequest) -> IngestResponse:
             message_id = client.publish(payload.model_dump())
         logger.info(
             "Queued ingest request",
-            extra={"event": "ingest_queued", "file_path": payload.file_path},
+            extra={
+                "event": "ingest_queued",
+                "file_path": payload.file_path,
+                "message_id": message_id,
+            },
         )
     except Exception as exc:
         logger.exception(
