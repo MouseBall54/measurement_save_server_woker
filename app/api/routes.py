@@ -61,7 +61,6 @@ def ingest(payload: IngestRequest) -> IngestResponse:
 
 @router.get("/health")
 def health() -> dict:
-    logger.info("Health check", extra={"event": "health"})
     return {"status": "ok"}
 
 
@@ -69,10 +68,6 @@ def health() -> dict:
 def ready() -> tuple[dict, int]:
     db_ok = check_db()
     mq_ok = check_rabbitmq()
-    logger.info(
-        "Readiness check",
-        extra={"event": "ready", "db": db_ok, "rabbitmq": mq_ok},
-    )
     if db_ok and mq_ok:
         return {"status": "ready"}, 200
     return {"status": "not_ready", "details": {"db": db_ok, "rabbitmq": mq_ok}}, 503

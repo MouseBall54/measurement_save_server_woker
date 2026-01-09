@@ -40,6 +40,7 @@ def setup_logging(level: int = logging.INFO) -> None:
 
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(JsonFormatter())
+    console_handler.addFilter(EventOnlyFilter())
 
     file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(JsonFormatter())
