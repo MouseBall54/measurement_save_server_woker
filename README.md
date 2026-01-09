@@ -124,6 +124,9 @@ pip install -r requirements.txt
 - MySQL 클라이언트에서 스키마 적용 시 경로 구분자 주의
   - PowerShell 기준: `Get-Content app\db\schema.sql | mysql -u <user> -p`
 - RabbitMQ는 Windows 서비스로 설치하거나 Docker 사용 권장
+- Windows 실행 파일
+  - 서버: `run_server.bat`
+  - 워커(4개 예시): `run_worker.bat 4`
 
 ### Linux 환경 주의사항
 
