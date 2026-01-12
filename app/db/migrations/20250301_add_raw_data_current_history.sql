@@ -55,6 +55,13 @@ CREATE TABLE IF NOT EXISTS measurement_raw_data_history (
   KEY idx_history_item (item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE EVENT IF NOT EXISTS purge_raw_data_history
+ON SCHEDULE EVERY 1 DAY
+STARTS CURRENT_TIMESTAMP + INTERVAL 1 HOUR
+DO
+  DELETE FROM measurement_raw_data_history
+  WHERE ingested_at < NOW() - INTERVAL 1 MONTH;
+
 -- Optional backfill for current table (latest-only).
 INSERT INTO measurement_raw_data_current (
   file_id, item_id, x_index, y_index, measurable,

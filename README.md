@@ -75,6 +75,7 @@
    - 동일 `file_path + recipe` 조합은 최신 `file_name`, `reference_id`, `lot_wf_id`로 업데이트
    - 최신 값은 `measurement_raw_data_current`에 유지, 이력은 `measurement_raw_data_history`에 append
    - 이력 보존 기간은 1개월 기준으로 purge 정책을 둔다
+   - MySQL EVENT 스케줄러로 purge를 자동 실행
 
 ## 헬스체크/상태 확인
 
@@ -89,6 +90,22 @@
 
 - 로그
   - JSON 형태로 stdout에 출력
+
+## DB 이벤트 스케줄러 설정 (MySQL)
+
+`purge_raw_data_history` 이벤트가 동작하려면 `event_scheduler`가 활성화되어 있어야 합니다.
+
+```sql
+SHOW VARIABLES LIKE 'event_scheduler';
+SET GLOBAL event_scheduler = ON;
+```
+
+`my.cnf` 예시:
+
+```
+[mysqld]
+event_scheduler=ON
+```
   - 운영 환경에서는 로그 수집기(예: ELK, Cloud Logging)로 전송
   - 기본 파일 로그: `logs/app.log`, 에러 로그: `logs/error.log`
 - 메트릭

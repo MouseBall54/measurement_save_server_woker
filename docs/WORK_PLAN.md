@@ -13,8 +13,7 @@ The schema file is `app/db/schema.sql` (copied from `create_db.sql`). It defines
 - measurement_files: file metadata; unique (file_path, recipe_id); references spas_references, lot_wf, measurement_recipe
 - metric_types: metric name + unit + is_active
 - measurement_items: class_name + measure_item + metric_type_id unique; references metric_types
-- measurement_raw_data: legacy fact table for points; unique (file_id, item_id, x_index, y_index); references measurement_files and measurement_items
-- measurement_raw_data_current/history: added via migration for latest-only + 1-month retention
+- measurement_raw_data_current/history: latest-only + 1-month retention
 
 Type notes (from SQLAlchemy Core docs via Context7):
 - Use generic SQLAlchemy types where possible (String, Integer, BigInteger, Boolean, DateTime, Float/Double)

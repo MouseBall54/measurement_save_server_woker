@@ -209,41 +209,7 @@ CREATE TABLE measurement_items (
 
 
 -- =========================================================
--- 5) Fact table: measurement_raw_data
--- =========================================================
-CREATE TABLE measurement_raw_data (
-  id         BIGINT AUTO_INCREMENT PRIMARY KEY,
-  file_id    BIGINT NOT NULL,
-  item_id    BIGINT NOT NULL,
-
-  measurable TINYINT(1) NOT NULL DEFAULT 1,
-
-  x_index    INT NOT NULL,
-  y_index    INT NOT NULL,
-
-  x_0        DOUBLE NOT NULL,
-  x_1        DOUBLE NOT NULL,
-  y_0        DOUBLE NOT NULL,
-  y_1        DOUBLE NOT NULL,
-
-  value      DOUBLE NOT NULL,
-
-  CONSTRAINT fk_raw_file
-    FOREIGN KEY (file_id) REFERENCES measurement_files(id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-
-  CONSTRAINT fk_raw_item
-    FOREIGN KEY (item_id) REFERENCES measurement_items(id)
-    ON DELETE RESTRICT ON UPDATE CASCADE,
-
-  UNIQUE KEY uk_raw_file_item_xy (file_id, item_id, x_index, y_index),
-
-  KEY idx_raw_file (file_id),
-  KEY idx_raw_item (item_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- =========================================================
--- 6) Latest/History tables: measurement_raw_data_current, measurement_raw_data_history
+-- 5) Latest/History tables: measurement_raw_data_current, measurement_raw_data_history
 -- =========================================================
 CREATE TABLE measurement_raw_data_current (
   file_id    BIGINT NOT NULL,
@@ -307,3 +273,13 @@ CREATE TABLE measurement_raw_data_history (
   KEY idx_history_file_ingested (file_id, ingested_at),
   KEY idx_history_item (item_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =========================================================
+-- 7) Purge event: keep history for 1 month
+-- =========================================================
+CREATE EVENT IF NOT EXISTS purge_raw_data_history
+ON SCHEDULE EVERY 1 DAY
+STARTS CURRENT_TIMESTAMP + INTERVAL 1 HOUR
+DO
+  DELETE FROM measurement_raw_data_history
+  WHERE ingested_at < NOW() - INTERVAL 1 MONTH;
