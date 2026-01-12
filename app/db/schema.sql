@@ -8,10 +8,10 @@ SET NAMES utf8mb4;
 SET time_zone = '+09:00';
 
 -- 운영 DB 생성/선택
-CREATE DATABASE IF NOT EXISTS measure_system_3
+CREATE DATABASE IF NOT EXISTS measure_system
   CHARACTER SET utf8mb4
   COLLATE utf8mb4_unicode_ci;
-USE measure_system_3;
+USE measure_system;
 
 -- =========================================================
 -- 1) Dimension / Master tables
@@ -222,8 +222,8 @@ CREATE TABLE measurement_raw_data (
   y_index    INT NOT NULL,
 
   x_0        DOUBLE NOT NULL,
-  y_0        DOUBLE NOT NULL,
   x_1        DOUBLE NOT NULL,
+  y_0        DOUBLE NOT NULL,
   y_1        DOUBLE NOT NULL,
 
   value      DOUBLE NOT NULL,
