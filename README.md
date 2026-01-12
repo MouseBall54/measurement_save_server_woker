@@ -222,7 +222,7 @@ pytest -q
 
 ## 자주 사용하는 SQL 예시
 
-### 1) spas_references 조합 + file_name으로 파일 조회
+### 1) 기준정보 이름 조합 + file_name으로 파일 조회
 
 ```sql
 SELECT
@@ -232,19 +232,27 @@ SELECT
   mf.recipe_id,
   mf.created_at,
   mf.updated_at,
-  sr.product_id,
-  sr.site_id,
-  sr.node_id,
-  sr.module_id
+  pn.name AS product_name,
+  ss.name AS site_name,
+  sn.name AS node_name,
+  sm.name AS module_name
 FROM measurement_files AS mf
 JOIN spas_references AS sr
   ON sr.id = mf.reference_id
+JOIN product_names AS pn
+  ON pn.id = sr.product_id
+JOIN spas_sites AS ss
+  ON ss.id = sr.site_id
+JOIN spas_nodes AS sn
+  ON sn.id = sr.node_id
+JOIN spas_modules AS sm
+  ON sm.id = sr.module_id
 WHERE
-  sr.product_id = :product_id
-  AND sr.site_id = :site_id
-  AND sr.node_id = :node_id
-  AND sr.module_id = :module_id
-  AND mf.file_name = :file_name;
+  pn.name = ?
+  AND ss.name = ?
+  AND sn.name = ?
+  AND sm.name = ?
+  AND mf.file_name = ?;
 ```
 
 ### 2) 파일 경로 + 레시피로 파일 조회
@@ -252,11 +260,11 @@ WHERE
 ```sql
 SELECT *
 FROM measurement_files
-WHERE file_path = :file_path
-  AND recipe_id = :recipe_id;
+WHERE file_path = ?
+  AND recipe_id = ?;
 ```
 
-### 3) 파일별 raw 데이터 조회 (아이템/메트릭 조인)
+### 3) 파일 경로 + 레시피 이름으로 raw 데이터 조회 (아이템/메트릭 조인)
 
 ```sql
 SELECT
@@ -266,14 +274,20 @@ SELECT
   mt.name AS metric_name,
   mt.unit AS metric_unit
 FROM measurement_raw_data AS rd
+JOIN measurement_files AS mf
+  ON mf.id = rd.file_id
+JOIN measurement_recipe AS mr
+  ON mr.id = mf.recipe_id
 JOIN measurement_items AS mi
   ON mi.id = rd.item_id
 JOIN metric_types AS mt
   ON mt.id = mi.metric_type_id
-WHERE rd.file_id = :file_id;
+WHERE mf.file_path = ?
+  AND mr.name = ?
+  AND mr.version = ?;
 ```
 
-### 4) 특정 조합 + 레시피의 최근 파일 목록
+### 4) 기준정보 이름 + 레시피 이름/버전으로 최근 파일 목록
 
 ```sql
 SELECT
@@ -284,25 +298,43 @@ SELECT
 FROM measurement_files AS mf
 JOIN spas_references AS sr
   ON sr.id = mf.reference_id
+JOIN measurement_recipe AS mr
+  ON mr.id = mf.recipe_id
+JOIN product_names AS pn
+  ON pn.id = sr.product_id
+JOIN spas_sites AS ss
+  ON ss.id = sr.site_id
+JOIN spas_nodes AS sn
+  ON sn.id = sr.node_id
+JOIN spas_modules AS sm
+  ON sm.id = sr.module_id
 WHERE
-  sr.product_id = :product_id
-  AND sr.site_id = :site_id
-  AND sr.node_id = :node_id
-  AND sr.module_id = :module_id
-  AND mf.recipe_id = :recipe_id
+  pn.name = ?
+  AND ss.name = ?
+  AND sn.name = ?
+  AND sm.name = ?
+  AND mr.name = ?
+  AND mr.version = ?
 ORDER BY mf.created_at DESC
 LIMIT 50;
 ```
 
-### 5) 파일별 raw 데이터 개수 집계
+### 5) 파일 경로 + 레시피 이름으로 raw 데이터 개수 집계
 
 ```sql
 SELECT
-  file_id,
+  mf.file_path,
+  mf.recipe_id,
   COUNT(*) AS raw_count
-FROM measurement_raw_data
-WHERE file_id = :file_id
-GROUP BY file_id;
+FROM measurement_raw_data AS rd
+JOIN measurement_files AS mf
+  ON mf.id = rd.file_id
+JOIN measurement_recipe AS mr
+  ON mr.id = mf.recipe_id
+WHERE mf.file_path = ?
+  AND mr.name = ?
+  AND mr.version = ?
+GROUP BY mf.file_path, mf.recipe_id;
 ```
 
 ## Python 클라이언트 템플릿 (DataFrame / NumPy)
