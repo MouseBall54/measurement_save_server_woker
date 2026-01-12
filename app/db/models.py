@@ -153,3 +153,36 @@ class MeasurementRawData(Base):
             "file_id", "item_id", "x_index", "y_index", name="uk_raw_file_item_xy"
         ),
     )
+
+
+class MeasurementRawDataCurrent(Base):
+    __tablename__ = "measurement_raw_data_current"
+
+    file_id = Column(BigInteger, ForeignKey("measurement_files.id"), primary_key=True)
+    item_id = Column(BigInteger, ForeignKey("measurement_items.id"), primary_key=True)
+    x_index = Column(Integer, primary_key=True)
+    y_index = Column(Integer, primary_key=True)
+    measurable = Column(Boolean, nullable=False, server_default="1")
+    x_0 = Column(Float, nullable=False)
+    x_1 = Column(Float, nullable=False)
+    y_0 = Column(Float, nullable=False)
+    y_1 = Column(Float, nullable=False)
+    value = Column(Float, nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class MeasurementRawDataHistory(Base):
+    __tablename__ = "measurement_raw_data_history"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    file_id = Column(BigInteger, ForeignKey("measurement_files.id"), nullable=False)
+    item_id = Column(BigInteger, ForeignKey("measurement_items.id"), nullable=False)
+    measurable = Column(Boolean, nullable=False, server_default="1")
+    x_index = Column(Integer, nullable=False)
+    y_index = Column(Integer, nullable=False)
+    x_0 = Column(Float, nullable=False)
+    x_1 = Column(Float, nullable=False)
+    y_0 = Column(Float, nullable=False)
+    y_1 = Column(Float, nullable=False)
+    value = Column(Float, nullable=False)
+    ingested_at = Column(DateTime, server_default=func.now(), nullable=False)

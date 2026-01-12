@@ -1,6 +1,12 @@
 from sqlalchemy import select
 
-from app.db.models import MeasurementFile, MeasurementItem, MeasurementRawData, MetricType
+from app.db.models import (
+    MeasurementFile,
+    MeasurementItem,
+    MeasurementRawDataCurrent,
+    MeasurementRawDataHistory,
+    MetricType,
+)
 from app.worker import worker
 from app.worker.worker import process_message
 
@@ -52,9 +58,11 @@ def test_process_message_inserts_raw_data(db_session):
     process_message(db_session, payload)
     db_session.commit()
 
-    raw = db_session.execute(select(MeasurementRawData)).scalars().all()
-    assert len(raw) == 2
-    values = sorted(item.value for item in raw)
+    current = db_session.execute(select(MeasurementRawDataCurrent)).scalars().all()
+    history = db_session.execute(select(MeasurementRawDataHistory)).scalars().all()
+    assert len(current) == 2
+    assert len(history) == 2
+    values = sorted(item.value for item in current)
     assert values == [1.23, 2.34]
 
 
@@ -90,8 +98,10 @@ def test_process_message_idempotent(db_session):
     process_message(db_session, payload)
     db_session.commit()
 
-    raw = db_session.execute(select(MeasurementRawData)).scalars().all()
-    assert len(raw) == 1
+    current = db_session.execute(select(MeasurementRawDataCurrent)).scalars().all()
+    history = db_session.execute(select(MeasurementRawDataHistory)).scalars().all()
+    assert len(current) == 1
+    assert len(history) == 2
 
 
 def test_process_message_updates_existing(db_session):
@@ -152,9 +162,9 @@ def test_process_message_updates_existing(db_session):
     file_row = db_session.execute(select(MeasurementFile)).scalar_one()
     assert file_row.file_name == "new.csv"
 
-    raw = db_session.execute(select(MeasurementRawData)).scalar_one()
-    assert raw.measurable is False
-    assert raw.value == 9.99
+    current = db_session.execute(select(MeasurementRawDataCurrent)).scalar_one()
+    assert current.measurable is False
+    assert current.value == 9.99
 
 
 def test_process_message_reactivates_measurement_item(db_session):

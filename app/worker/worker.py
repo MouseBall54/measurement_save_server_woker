@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 
 import pika
-from sqlalchemy import func, select, text
+from sqlalchemy import func, insert, select, text
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -14,7 +14,8 @@ from app.db.models import (
     LotWf,
     MeasurementFile,
     MeasurementItem,
-    MeasurementRawData,
+    MeasurementRawDataCurrent,
+    MeasurementRawDataHistory,
     MeasurementRecipe,
     MetricType,
     ProductName,
@@ -171,6 +172,8 @@ def process_message(session, payload: dict) -> dict:
     inserted = 0
     metric_type_cache = {}
     measurement_item_cache = {}
+    current_rows = []
+    history_rows = []
     for measurement in measurements:
         metric_name = measurement["metric_name"]
         metric_unit = measurement.get("metric_unit")
@@ -220,35 +223,42 @@ def process_message(session, payload: dict) -> dict:
             "y_1": measurement["y_1"],
             "value": measurement["value"],
         }
-        raw_updates = {
-            "measurable": measurement.get("measurable", True),
-            "x_0": measurement["x_0"],
-            "x_1": measurement["x_1"],
-            "y_0": measurement["y_0"],
-            "y_1": measurement["y_1"],
-            "value": measurement["value"],
-        }
-        if session.bind.dialect.name == "mysql":
-            raw_stmt = mysql_insert(MeasurementRawData).values(**raw_values)
-            raw_stmt = raw_stmt.on_duplicate_key_update(**raw_updates)
-            session.execute(raw_stmt)
-        else:
-            existing = session.execute(
-                select(MeasurementRawData).filter_by(
-                    file_id=measurement_file.id,
-                    item_id=measurement_item.id,
-                    x_index=measurement["x_index"],
-                    y_index=measurement["y_index"],
-                )
-            ).scalar_one_or_none()
-            if existing:
-                for key, value in raw_updates.items():
-                    setattr(existing, key, value)
-            else:
-                session.add(MeasurementRawData(**raw_values))
+        current_rows.append(raw_values)
+        history_rows.append(raw_values)
         inserted += 1
 
     measurement_file.updated_at = func.now()
+    if history_rows:
+        if session.bind.dialect.name == "mysql":
+            session.execute(mysql_insert(MeasurementRawDataHistory).values(history_rows))
+            current_stmt = mysql_insert(MeasurementRawDataCurrent).values(current_rows)
+            current_stmt = current_stmt.on_duplicate_key_update(
+                measurable=current_stmt.inserted.measurable,
+                x_0=current_stmt.inserted.x_0,
+                x_1=current_stmt.inserted.x_1,
+                y_0=current_stmt.inserted.y_0,
+                y_1=current_stmt.inserted.y_1,
+                value=current_stmt.inserted.value,
+                updated_at=func.now(),
+            )
+            session.execute(current_stmt)
+        else:
+            session.execute(insert(MeasurementRawDataHistory), history_rows)
+            for row in current_rows:
+                existing = session.execute(
+                    select(MeasurementRawDataCurrent).filter_by(
+                        file_id=row["file_id"],
+                        item_id=row["item_id"],
+                        x_index=row["x_index"],
+                        y_index=row["y_index"],
+                    )
+                ).scalar_one_or_none()
+                if existing:
+                    for key, value in row.items():
+                        setattr(existing, key, value)
+                    existing.updated_at = func.now()
+                else:
+                    session.add(MeasurementRawDataCurrent(**row))
 
     return {
         "file_path": payload.get("file_path"),

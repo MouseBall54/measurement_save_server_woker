@@ -18,8 +18,8 @@
 
 3) 워커 처리 로직 변경
    - 공통 엔티티는 1회만 get-or-create
-   - measurements 배열을 순회하며 measurement_items / measurement_raw_data를 다건 insert
-   - 중복 키(uk_raw_file_item_xy) 처리 전략 명확화
+   - measurements 배열을 순회하며 measurement_items / measurement_raw_data_current, measurement_raw_data_history를 다건 insert
+   - 최신값은 current upsert, 이력은 history append 방식으로 처리
 
 4) 테스트 업데이트
    - /ingest에 measurements 배열 입력 테스트

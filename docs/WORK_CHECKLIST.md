@@ -13,3 +13,6 @@
 - [x] Add `tests/test_queue.py` with publish unit test
 - [x] Add `tests/test_worker.py` for message processing + DB insert
 - [x] Add README with env vars, run steps, curl example
+- [ ] Design raw data split: current vs history tables (latest-only + 1 month)
+- [ ] Define purge strategy for 1-month history (DB event or scheduler)
+- [ ] Add migration/backfill steps for raw data split

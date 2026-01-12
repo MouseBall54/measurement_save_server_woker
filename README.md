@@ -66,14 +66,15 @@
 3) Worker
    - 큐에서 메시지 consume
    - payload를 파싱하고 필요한 마스터/조합 테이블을 get-or-create
-   - `measurement_files` 및 `measurement_raw_data`에 insert
+   - `measurement_files`, `measurement_raw_data_current`, `measurement_raw_data_history`에 insert
    - 성공 시 ACK, 실패 시 NACK(requeue)
 
 4) DB
    - `app/db/schema.sql`에 정의된 테이블 구조를 그대로 사용
    - 중복 키는 유니크 제약으로 방지
    - 동일 `file_path + recipe` 조합은 최신 `file_name`, `reference_id`, `lot_wf_id`로 업데이트
-   - 동일 `file_id + item_id + x_index + y_index` 조합은 측정값을 업데이트
+   - 최신 값은 `measurement_raw_data_current`에 유지, 이력은 `measurement_raw_data_history`에 append
+   - 이력 보존 기간은 1개월 기준으로 purge 정책을 둔다
 
 ## 헬스체크/상태 확인
 
@@ -264,7 +265,7 @@ WHERE file_path = ?
   AND recipe_id = ?;
 ```
 
-### 3) 파일 경로 + 레시피 이름으로 raw 데이터 조회 (아이템/메트릭 조인)
+### 3) 파일 경로 + 레시피 이름으로 최신 raw 데이터 조회 (아이템/메트릭 조인)
 
 ```sql
 SELECT
@@ -273,7 +274,7 @@ SELECT
   mi.measure_item,
   mt.name AS metric_name,
   mt.unit AS metric_unit
-FROM measurement_raw_data AS rd
+FROM measurement_raw_data_current AS rd
 JOIN measurement_files AS mf
   ON mf.id = rd.file_id
 JOIN measurement_recipe AS mr
@@ -319,14 +320,14 @@ ORDER BY mf.created_at DESC
 LIMIT 50;
 ```
 
-### 5) 파일 경로 + 레시피 이름으로 raw 데이터 개수 집계
+### 5) 파일 경로 + 레시피 이름으로 최신 raw 데이터 개수 집계
 
 ```sql
 SELECT
   mf.file_path,
   mf.recipe_id,
   COUNT(*) AS raw_count
-FROM measurement_raw_data AS rd
+FROM measurement_raw_data_current AS rd
 JOIN measurement_files AS mf
   ON mf.id = rd.file_id
 JOIN measurement_recipe AS mr
