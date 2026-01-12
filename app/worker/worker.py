@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 from datetime import datetime
 
 import pika
@@ -298,20 +299,21 @@ def main() -> None:
                 "Worker received message",
                 extra={
                     "event": "received",
-                    "file_path": payload.get("file_path"),
                     "message_id": message.get("id"),
                     "worker_id": worker_id,
                 },
             )
+            started_at = time.perf_counter()
             result = process_message(session, payload)
             session.commit()
+            duration_ms = int((time.perf_counter() - started_at) * 1000)
             logger.info(
                 "Worker processed message",
                 extra={
                     "event": "processed",
-                    "file_path": result["file_path"],
                     "measurement_count": result["measurement_count"],
                     "inserted_count": result["inserted_count"],
+                    "duration_ms": duration_ms,
                     "message_id": message.get("id"),
                     "worker_id": worker_id,
                 },
@@ -322,7 +324,7 @@ def main() -> None:
             logger.exception(
                 "Failed to process message: %s",
                 exc,
-                extra={"event": "error", "file_path": payload.get("file_path")},
+                extra={"event": "error"},
             )
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
         finally:
