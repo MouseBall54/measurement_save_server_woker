@@ -38,8 +38,8 @@ def test_ingest_queues_message(client, monkeypatch):
                     "x_index": 0,
                     "y_index": 0,
                     "x_0": 0.1,
-                    "y_0": 0.2,
                     "x_1": 0.3,
+                    "y_0": 0.2,
                     "y_1": 0.4,
                     "value": 1.23,
                 }

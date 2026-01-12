@@ -191,8 +191,8 @@ curl -X POST http://localhost:8000/ingest \
         "x_index": 0,
         "y_index": 0,
         "x_0": 0.1,
-        "y_0": 0.2,
         "x_1": 0.3,
+        "y_0": 0.2,
         "y_1": 0.4,
         "value": 1.23
       },
@@ -205,8 +205,8 @@ curl -X POST http://localhost:8000/ingest \
         "x_index": 1,
         "y_index": 0,
         "x_0": 0.2,
-        "y_0": 0.3,
         "x_1": 0.4,
+        "y_0": 0.3,
         "y_1": 0.5,
         "value": 2.34
       }
@@ -353,7 +353,7 @@ def ingest_from_dataframe(api_url: str, common: dict, df):
     """
     df columns expected:
       metric_name, metric_unit, class_name, measure_item, measurable,
-      x_index, y_index, x_0, y_0, x_1, y_1, value
+      x_index, y_index, x_0, x_1, y_0, y_1, value
     """
     measurements = []
     for row in df.to_dict(orient="records"):
@@ -367,8 +367,8 @@ def ingest_from_dataframe(api_url: str, common: dict, df):
                 "x_index": int(row["x_index"]),
                 "y_index": int(row["y_index"]),
                 "x_0": float(row["x_0"]),
-                "y_0": float(row["y_0"]),
                 "x_1": float(row["x_1"]),
+                "y_0": float(row["y_0"]),
                 "y_1": float(row["y_1"]),
                 "value": float(row["value"]),
             }
@@ -385,7 +385,7 @@ def ingest_from_numpy(api_url: str, common: dict, arr):
     arr shape expected: (N, 12)
     columns order:
       metric_name, metric_unit, class_name, measure_item, measurable,
-      x_index, y_index, x_0, y_0, x_1, y_1, value
+      x_index, y_index, x_0, x_1, y_0, y_1, value
     """
     measurements = []
     for row in arr:
@@ -399,8 +399,8 @@ def ingest_from_numpy(api_url: str, common: dict, arr):
                 "x_index": int(row[5]),
                 "y_index": int(row[6]),
                 "x_0": float(row[7]),
-                "y_0": float(row[8]),
-                "x_1": float(row[9]),
+                "x_1": float(row[8]),
+                "y_0": float(row[9]),
                 "y_1": float(row[10]),
                 "value": float(row[11]),
             }
@@ -441,8 +441,8 @@ df = pd.DataFrame(
             "x_index": 0,
             "y_index": 0,
             "x_0": 0.1,
-            "y_0": 0.2,
             "x_1": 0.3,
+            "y_0": 0.2,
             "y_1": 0.4,
             "value": 1.23,
         },
@@ -455,8 +455,8 @@ df = pd.DataFrame(
             "x_index": 1,
             "y_index": 0,
             "x_0": 0.2,
-            "y_0": 0.3,
             "x_1": 0.4,
+            "y_0": 0.3,
             "y_1": 0.5,
             "value": 2.34,
         },
@@ -487,11 +487,11 @@ common = {
 
 # columns:
 # metric_name, metric_unit, class_name, measure_item, measurable,
-# x_index, y_index, x_0, y_0, x_1, y_1, value
+# x_index, y_index, x_0, x_1, y_0, y_1, value
 arr = np.array(
     [
-        ["THK", "nm", "CLASS_A", "ITEM_1", True, 0, 0, 0.1, 0.2, 0.3, 0.4, 1.23],
-        ["THK", "nm", "CLASS_A", "ITEM_1", True, 1, 0, 0.2, 0.3, 0.4, 0.5, 2.34],
+        ["THK", "nm", "CLASS_A", "ITEM_1", True, 0, 0, 0.1, 0.3, 0.2, 0.4, 1.23],
+        ["THK", "nm", "CLASS_A", "ITEM_1", True, 1, 0, 0.2, 0.4, 0.3, 0.5, 2.34],
     ]
 )
 

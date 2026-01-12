@@ -168,32 +168,44 @@ def process_message(session, payload: dict) -> dict:
 
     measurements = payload.get("measurements", [])
     inserted = 0
+    metric_type_cache = {}
+    measurement_item_cache = {}
     for measurement in measurements:
+        metric_name = measurement["metric_name"]
         metric_unit = measurement.get("metric_unit")
-        metric_type = upsert_and_get_id(
-            session,
-            MetricType,
-            values={"name": measurement["metric_name"], "unit": metric_unit, "is_active": True},
-            update_fields={"unit": metric_unit, "is_active": True},
-            lookup_filters={"name": measurement["metric_name"]},
-        )
+        metric_type = metric_type_cache.get(metric_name)
+        if metric_type is None or (
+            metric_unit is not None and getattr(metric_type, "unit", None) != metric_unit
+        ):
+            metric_type = upsert_and_get_id(
+                session,
+                MetricType,
+                values={"name": metric_name, "unit": metric_unit, "is_active": True},
+                update_fields={"unit": metric_unit, "is_active": True},
+                lookup_filters={"name": metric_name},
+            )
+            metric_type_cache[metric_name] = metric_type
 
-        measurement_item = upsert_and_get_id(
-            session,
-            MeasurementItem,
-            values={
-                "class_name": measurement["class_name"],
-                "measure_item": measurement["measure_item"],
-                "metric_type_id": metric_type.id,
-                "is_active": True,
-            },
-            update_fields={"is_active": True},
-            lookup_filters={
-                "class_name": measurement["class_name"],
-                "measure_item": measurement["measure_item"],
-                "metric_type_id": metric_type.id,
-            },
-        )
+        item_key = (measurement["class_name"], measurement["measure_item"], metric_type.id)
+        measurement_item = measurement_item_cache.get(item_key)
+        if measurement_item is None:
+            measurement_item = upsert_and_get_id(
+                session,
+                MeasurementItem,
+                values={
+                    "class_name": measurement["class_name"],
+                    "measure_item": measurement["measure_item"],
+                    "metric_type_id": metric_type.id,
+                    "is_active": True,
+                },
+                update_fields={"is_active": True},
+                lookup_filters={
+                    "class_name": measurement["class_name"],
+                    "measure_item": measurement["measure_item"],
+                    "metric_type_id": metric_type.id,
+                },
+            )
+            measurement_item_cache[item_key] = measurement_item
 
         raw_values = {
             "file_id": measurement_file.id,
@@ -202,16 +214,16 @@ def process_message(session, payload: dict) -> dict:
             "x_index": measurement["x_index"],
             "y_index": measurement["y_index"],
             "x_0": measurement["x_0"],
-            "y_0": measurement["y_0"],
             "x_1": measurement["x_1"],
+            "y_0": measurement["y_0"],
             "y_1": measurement["y_1"],
             "value": measurement["value"],
         }
         raw_updates = {
             "measurable": measurement.get("measurable", True),
             "x_0": measurement["x_0"],
-            "y_0": measurement["y_0"],
             "x_1": measurement["x_1"],
+            "y_0": measurement["y_0"],
             "y_1": measurement["y_1"],
             "value": measurement["value"],
         }

@@ -10,8 +10,8 @@ class MeasurementPoint(BaseModel):
     x_index: int
     y_index: int
     x_0: float
-    y_0: float
     x_1: float
+    y_0: float
     y_1: float
     value: float
 

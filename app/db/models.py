@@ -143,8 +143,8 @@ class MeasurementRawData(Base):
     x_index = Column(Integer, nullable=False)
     y_index = Column(Integer, nullable=False)
     x_0 = Column(Float, nullable=False)
-    y_0 = Column(Float, nullable=False)
     x_1 = Column(Float, nullable=False)
+    y_0 = Column(Float, nullable=False)
     y_1 = Column(Float, nullable=False)
     value = Column(Float, nullable=False)
 

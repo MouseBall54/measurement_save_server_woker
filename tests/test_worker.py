@@ -1,6 +1,7 @@
 from sqlalchemy import select
 
 from app.db.models import MeasurementFile, MeasurementItem, MeasurementRawData, MetricType
+from app.worker import worker
 from app.worker.worker import process_message
 
 
@@ -26,8 +27,8 @@ def test_process_message_inserts_raw_data(db_session):
                 "x_index": 0,
                 "y_index": 0,
                 "x_0": 0.1,
-                "y_0": 0.2,
                 "x_1": 0.3,
+                "y_0": 0.2,
                 "y_1": 0.4,
                 "value": 1.23,
             },
@@ -40,8 +41,8 @@ def test_process_message_inserts_raw_data(db_session):
                 "x_index": 1,
                 "y_index": 0,
                 "x_0": 0.2,
-                "y_0": 0.3,
                 "x_1": 0.4,
+                "y_0": 0.3,
                 "y_1": 0.5,
                 "value": 2.34,
             },
@@ -77,8 +78,8 @@ def test_process_message_idempotent(db_session):
                 "x_index": 0,
                 "y_index": 0,
                 "x_0": 0.1,
-                "y_0": 0.2,
                 "x_1": 0.3,
+                "y_0": 0.2,
                 "y_1": 0.4,
                 "value": 1.23,
             }
@@ -113,8 +114,8 @@ def test_process_message_updates_existing(db_session):
                 "x_index": 0,
                 "y_index": 0,
                 "x_0": 0.1,
-                "y_0": 0.2,
                 "x_1": 0.3,
+                "y_0": 0.2,
                 "y_1": 0.4,
                 "value": 1.23,
             }
@@ -137,8 +138,8 @@ def test_process_message_updates_existing(db_session):
                 "x_index": 0,
                 "y_index": 0,
                 "x_0": 1.1,
-                "y_0": 1.2,
                 "x_1": 1.3,
+                "y_0": 1.2,
                 "y_1": 1.4,
                 "value": 9.99,
             }
@@ -189,8 +190,8 @@ def test_process_message_reactivates_measurement_item(db_session):
                 "x_index": 0,
                 "y_index": 0,
                 "x_0": 0.1,
-                "y_0": 0.2,
                 "x_1": 0.3,
+                "y_0": 0.2,
                 "y_1": 0.4,
                 "value": 1.23,
             }
@@ -228,8 +229,8 @@ def test_process_message_updates_metric_type(db_session):
                 "x_index": 0,
                 "y_index": 0,
                 "x_0": 0.1,
-                "y_0": 0.2,
                 "x_1": 0.3,
+                "y_0": 0.2,
                 "y_1": 0.4,
                 "value": 1.23,
             }
@@ -242,3 +243,64 @@ def test_process_message_updates_metric_type(db_session):
     updated_type = db_session.get(MetricType, metric_type.id)
     assert updated_type.unit == "nm"
     assert updated_type.is_active is True
+
+
+def test_process_message_dedupes_measurement_items(db_session, monkeypatch):
+    counts = {"metric_type": 0, "measurement_item": 0}
+    original_upsert = worker.upsert_and_get_id
+
+    def wrapped_upsert(session, model, values, update_fields, lookup_filters):
+        if model is MetricType:
+            counts["metric_type"] += 1
+        if model is MeasurementItem:
+            counts["measurement_item"] += 1
+        return original_upsert(session, model, values, update_fields, lookup_filters)
+
+    monkeypatch.setattr(worker, "upsert_and_get_id", wrapped_upsert)
+
+    payload = {
+        "product_name": "P1",
+        "site_name": "HC",
+        "node_name": "2NM",
+        "module_name": "PC",
+        "recipe_name": "RCP",
+        "recipe_version": "1.0",
+        "file_path": "/data/measurements/measure1.csv",
+        "file_name": "measure1.csv",
+        "measurements": [
+            {
+                "metric_name": "THK",
+                "metric_unit": "nm",
+                "class_name": "CLASS_A",
+                "measure_item": "ITEM_1",
+                "measurable": True,
+                "x_index": 0,
+                "y_index": 0,
+                "x_0": 0.1,
+                "x_1": 0.3,
+                "y_0": 0.2,
+                "y_1": 0.4,
+                "value": 1.23,
+            },
+            {
+                "metric_name": "THK",
+                "metric_unit": "nm",
+                "class_name": "CLASS_A",
+                "measure_item": "ITEM_1",
+                "measurable": True,
+                "x_index": 1,
+                "y_index": 0,
+                "x_0": 0.2,
+                "x_1": 0.4,
+                "y_0": 0.3,
+                "y_1": 0.5,
+                "value": 2.34,
+            },
+        ],
+    }
+
+    process_message(db_session, payload)
+    db_session.commit()
+
+    assert counts["metric_type"] == 1
+    assert counts["measurement_item"] == 1
