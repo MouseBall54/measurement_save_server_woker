@@ -220,6 +220,91 @@ curl -X POST http://localhost:8000/ingest \
 pytest -q
 ```
 
+## 자주 사용하는 SQL 예시
+
+### 1) spas_references 조합 + file_name으로 파일 조회
+
+```sql
+SELECT
+  mf.id,
+  mf.file_path,
+  mf.file_name,
+  mf.recipe_id,
+  mf.created_at,
+  mf.updated_at,
+  sr.product_id,
+  sr.site_id,
+  sr.node_id,
+  sr.module_id
+FROM measurement_files AS mf
+JOIN spas_references AS sr
+  ON sr.id = mf.reference_id
+WHERE
+  sr.product_id = :product_id
+  AND sr.site_id = :site_id
+  AND sr.node_id = :node_id
+  AND sr.module_id = :module_id
+  AND mf.file_name = :file_name;
+```
+
+### 2) 파일 경로 + 레시피로 파일 조회
+
+```sql
+SELECT *
+FROM measurement_files
+WHERE file_path = :file_path
+  AND recipe_id = :recipe_id;
+```
+
+### 3) 파일별 raw 데이터 조회 (아이템/메트릭 조인)
+
+```sql
+SELECT
+  rd.*,
+  mi.class_name,
+  mi.measure_item,
+  mt.name AS metric_name,
+  mt.unit AS metric_unit
+FROM measurement_raw_data AS rd
+JOIN measurement_items AS mi
+  ON mi.id = rd.item_id
+JOIN metric_types AS mt
+  ON mt.id = mi.metric_type_id
+WHERE rd.file_id = :file_id;
+```
+
+### 4) 특정 조합 + 레시피의 최근 파일 목록
+
+```sql
+SELECT
+  mf.id,
+  mf.file_name,
+  mf.file_path,
+  mf.created_at
+FROM measurement_files AS mf
+JOIN spas_references AS sr
+  ON sr.id = mf.reference_id
+WHERE
+  sr.product_id = :product_id
+  AND sr.site_id = :site_id
+  AND sr.node_id = :node_id
+  AND sr.module_id = :module_id
+  AND mf.recipe_id = :recipe_id
+ORDER BY mf.created_at DESC
+LIMIT 50;
+```
+
+### 5) 파일별 raw 데이터 개수 집계
+
+```sql
+SELECT
+  file_id,
+  COUNT(*) AS raw_count
+FROM measurement_raw_data
+WHERE file_id = :file_id
+GROUP BY file_id;
+```
+
 ## Python 클라이언트 템플릿 (DataFrame / NumPy)
 
 ```python
